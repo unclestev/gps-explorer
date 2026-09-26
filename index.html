@@ -1,359 +1,687 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Yorkville Explorer - OpenStreetMap Edition</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100vh;
-            height: 100dvh;
-            overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #111;
-            color: #fff;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            background: #1a1a1a;
-            z-index: 1;
-        }
-        /* HUD / Dashboard Overlay */
-        #hud {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 12px 18px;
-            border-radius: 12px;
-            pointer-events: none;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-        }
-        .hud-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: #ff9f43;
-            margin-bottom: 4px;
-            font-weight: 700;
-        }
-        .hud-row {
-            font-size: 15px;
-            font-weight: 600;
-            margin: 2px 0;
-            display: flex;
-            justify-content: space-between;
-            gap: 15px;
-        }
-        .hud-value {
-            font-family: monospace;
-            color: #00d2d3;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Yorkville Explorer - Real Map</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111;
+      color: #fff;
+    }
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background: #e5e3df; /* OSM default background */
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      /* Important for touch events */
+      touch-action: none;
+    }
+    
+    /* HUD Overlay */
+    .hud-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 10;
+      min-width: 220px;
+    }
+    .hud-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    .hud-location {
+      font-size: 18px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .hud-county {
+      font-size: 13px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .hud-coords {
+      font-size: 11px;
+      font-family: monospace;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .hud-speed {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 12px 18px;
+      text-align: center;
+      z-index: 10;
+    }
+    .speed-val {
+      font-size: 28px;
+      font-weight: 900;
+      color: #38bdf8;
+      line-height: 1;
+    }
+    .speed-unit {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
 
-        /* Minimap Overlay */
-        #minimap-container {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 10;
-            width: 130px;
-            height: 130px;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-            background: #222;
-            pointer-events: none;
-        }
-        #minimap {
-            width: 100%;
-            height: 100%;
-            background: #111;
-        }
+    /* Controls overlay */
+    .controls-hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #cbd5e1;
+      z-index: 10;
+      pointer-events: none;
+      white-space: nowrap;
+    }
 
-        /* Controls / Touch D-Pad */
-        .controls-container {
-            position: absolute;
-            bottom: 25px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 25px;
-            z-index: 10;
-            pointer-events: none;
-        }
-        .control-group {
-            display: flex;
-            gap: 12px;
-            pointer-events: auto;
-        }
-        .control-btn {
-            width: 65px;
-            height: 65px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(5px);
-            color: white;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-            transition: background 0.1s, transform 0.1s;
-        }
-        .control-btn:active, .control-btn.active {
-            background: rgba(255, 159, 67, 0.5);
-            border-color: #ff9f43;
-            transform: scale(0.92);
-        }
-        .pedal-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            pointer-events: auto;
-        }
-        .pedal-btn {
-            width: 75px;
-            height: 55px;
-            border-radius: 16px;
-            background: rgba(0, 210, 211, 0.2);
-            border: 2px solid rgba(0, 210, 211, 0.4);
-            backdrop-filter: blur(5px);
-            color: white;
-            font-size: 14px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-            transition: background 0.1s, transform 0.1s;
-        }
-        .pedal-btn:active, .pedal-btn.active {
-            background: rgba(0, 210, 211, 0.6);
-            border-color: #00d2d3;
-            transform: scale(0.92);
-        }
-        .pedal-btn.brake {
-            background: rgba(255, 71, 87, 0.2);
-            border-color: rgba(255, 71, 87, 0.4);
-        }
-        .pedal-btn.brake:active, .pedal-btn.brake.active {
-            background: rgba(255, 71, 87, 0.6);
-            border-color: #ff4757;
-        }
+    /* On-Screen Touch Controls */
+    .touch-controls {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      height: 140px;
+      pointer-events: none; /* Let touches pass through where there are no buttons */
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
 
-        /* Custom Leaflet Vehicle Marker */
-        .vehicle-marker {
-            background: none;
-            border: none;
-        }
-        .vehicle-icon {
-            width: 44px;
-            height: 44px;
-            background: #ff9f43;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 15px rgba(255, 159, 67, 0.8);
-            font-size: 20px;
-            transition: transform 0.05s linear;
-        }
-    </style>
+    .dpad-container {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      pointer-events: auto;
+    }
+
+    .action-container {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      backdrop-filter: blur(4px);
+      color: white;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      touch-action: none; /* Crucial for touch events */
+    }
+
+    .btn:active {
+      background: rgba(56, 189, 248, 0.5);
+      border-color: #38bdf8;
+    }
+
+    /* D-Pad Layout */
+    .btn-left {
+      position: absolute;
+      top: 40px;
+      left: 0;
+      width: 60px;
+      height: 60px;
+    }
+    .btn-right {
+      position: absolute;
+      top: 40px;
+      right: 0;
+      width: 60px;
+      height: 60px;
+    }
+
+    /* Gas/Brake Layout */
+    .btn-gas {
+      width: 70px;
+      height: 70px;
+      margin-bottom: 10px;
+    }
+    .btn-brake {
+      width: 60px;
+      height: 60px;
+      margin-right: 5px;
+    }
+    
+    /* Loading Indicator */
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 23, 42, 0.85);
+      padding: 10px 20px;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      z-index: 5;
+      display: none;
+    }
+  </style>
 </head>
 <body>
 
-    <div id="hud">
-        <div class="hud-title">Ford Explorer • Kendall Co.</div>
-        <div class="hud-row"><span>Speed</span><span id="speed-val" class="hud-value">0 MPH</span></div>
-        <div class="hud-row"><span>Heading</span><span id="heading-val" class="hud-value">0°</span></div>
+<div id="game-container">
+  <div class="hud-panel">
+    <div class="hud-title">Current Location</div>
+    <div id="loc-town" class="hud-location">Downtown Yorkville</div>
+    <div id="loc-county" class="hud-county">Kendall County, IL</div>
+    <div id="loc-coords" class="hud-coords">41.6413° N, 88.4469° W</div>
+  </div>
+
+  <div class="hud-speed">
+    <div id="speed-display" class="speed-val">0</div>
+    <div class="speed-unit">MPH</div>
+  </div>
+
+  <div class="controls-hint">
+    <b>Drive:</b> WASD / Arrows / Touch | <b>Zoom:</b> Pinch / Scroll
+  </div>
+
+  <div id="loading-indicator">Loading Map Tiles...</div>
+
+  <!-- Touch Controls -->
+  <div class="touch-controls" id="touchControls">
+    <div class="dpad-container">
+      <div class="btn btn-left" id="btnLeft">◀</div>
+      <div class="btn btn-right" id="btnRight">▶</div>
     </div>
-
-    <div id="minimap-container">
-        <div id="minimap"></div>
+    <div class="action-container">
+      <div class="btn btn-gas" id="btnGas">▲</div>
+      <div class="btn btn-brake" id="btnBrake">▼</div>
     </div>
+  </div>
 
-    <div id="map"></div>
+  <canvas id="gameCanvas"></canvas>
+</div>
 
-    <div class="controls-container">
-        <div class="control-group">
-            <button class="control-btn" id="btn-left">◀</button>
-            <button class="control-btn" id="btn-right">▶</button>
-        </div>
-        <div class="pedal-group">
-            <button class="pedal-btn" id="btn-accel">Drive</button>
-            <button class="pedal-btn brake" id="btn-brake">Brake</button>
-        </div>
-    </div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency on base
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script>
-        // Initialize Main Map centered on Yorkville / Oswego area
-        const defaultLat = 41.6447;
-        const defaultLng = -88.4456;
+  // UI Elements
+  const locTownEl = document.getElementById('loc-town');
+  const locCountyEl = document.getElementById('loc-county');
+  const locCoordsEl = document.getElementById('loc-coords');
+  const speedDisplayEl = document.getElementById('speed-display');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  
+  // Touch Buttons
+  const btnLeft = document.getElementById('btnLeft');
+  const btnRight = document.getElementById('btnRight');
+  const btnGas = document.getElementById('btnGas');
+  const btnBrake = document.getElementById('btnBrake');
 
-        const map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false,
-            dragging: false,
-            touchZoom: true,
-            scrollWheelZoom: true,
-            doubleClickZoom: false
-        }).setView([defaultLat, defaultLng], 15);
+  // Input tracking
+  const keys = { w: false, a: false, s: false, d: false, arrowup: false, arrowdown: false, arrowleft: false, arrowright: false };
+  
+  // Keyboard Listeners
+  window.addEventListener('keydown', e => { 
+    if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; 
+  });
+  window.addEventListener('keyup', e => { 
+    if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; 
+  });
 
-        // Dark Matter CartoDB Tile Layer for Clean OpenStreetMap rendering
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            subdomains: 'abcd'
-        }).addTo(map);
+  // Touch Listeners
+  function setupTouch(btn, keyName) {
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+    btn.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[keyName] = false; });
+  }
+  setupTouch(btnLeft, 'a');
+  setupTouch(btnRight, 'd');
+  setupTouch(btnGas, 'w');
+  setupTouch(btnBrake, 's');
 
-        // Initialize Mini Map
-        const minimap = L.map('minimap', {
-            zoomControl: false,
-            attributionControl: false,
-            dragging: false,
-            touchZoom: false,
-            scrollWheelZoom: false,
-            doubleClickZoom: false
-        }).setView([defaultLat, defaultLng], 13);
+  // Set canvas size
+  let width, height;
+  function resizeCanvas() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Hide touch controls if on a wide desktop screen (rough heuristic)
+    if (width > 1024 && !('ontouchstart' in window)) {
+        document.getElementById('touchControls').style.display = 'none';
+    } else {
+        document.getElementById('touchControls').style.display = 'flex';
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            subdomains: 'abcd'
-        }).addTo(minimap);
+  // --- Map Constants (Web Mercator) ---
+  const TILE_SIZE = 256;
+  
+  // Start Location: Downtown Yorkville, IL
+  const START_LAT = 41.641357;
+  const START_LON = -88.446922;
+  const START_ZOOM = 18; // Default map zoom level
 
-        // Vehicle State & Physics
-        let carPos = { lat: defaultLat, lng: defaultLng };
-        let heading = 0; // degrees
-        let speed = 0; // current velocity magnitude
-        const maxSpeed = 0.00015; // scaled lat/lng delta per frame
-        const acceleration = 0.000005;
-        const deceleration = 0.000008;
-        const turnSpeed = 3.5; // degrees per frame
+  // Convert Lat/Lon to Web Mercator Meters (EPSG:3857)
+  function lonToMeters(lon) {
+    return lon * 20037508.34 / 180;
+  }
+  function latToMeters(lat) {
+    let y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+    return y * 20037508.34 / 180;
+  }
+  
+  // Convert Web Mercator Meters to Lat/Lon
+  function metersToLon(x) {
+    return (x / 20037508.34) * 180;
+  }
+  function metersToLat(y) {
+    let lat = (y / 20037508.34) * 180;
+    return 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180)) - Math.PI / 2);
+  }
 
-        // Input Tracking flags
-        const inputs = { left: false, right: false, accel: false, brake: false };
+  // --- Vehicle State ---
+  // Position stored in Web Mercator Meters
+  const car = {
+    x: lonToMeters(START_LON),
+    y: latToMeters(START_LAT), 
+    speed: 0,
+    maxSpeed: 20, // REDUCED: Roughly 45 mph top speed
+    acceleration: 8, // Reduced acceleration
+    friction: 0.98,
+    brakeFriction: 0.92,
+    angle: 0, // Facing North initially
+    turnSpeed: 2.2,
+    length: 5.0, // meters (Ford Explorer length)
+    width: 2.0,  // meters
+    isBraking: false
+  };
 
-        // Custom Vehicle Icon
-        const vehicleIconHtml = L.divIcon({
-            className: 'vehicle-marker',
-            html: '<div id="car-icon-inner" class="vehicle-icon">🚙</div>',
-            iconSize: [44, 44],
-            iconAnchor: [22, 22]
-        });
+  // --- Camera & Zoom ---
+  let mapZoomLevel = START_ZOOM;
+  
+  // Calculate how many pixels represent one meter at the current zoom level and latitude
+  function getPixelsPerMeter() {
+      // Resolution = (Math.cos(lat) * 2 * PI * EarthRadius) / (TileSize * 2^Zoom)
+      // At zoom 18, 1 pixel is approx 0.59 meters at equator
+      const lat = metersToLat(car.y);
+      const earthCircumference = 40075016.686;
+      const metersPerPixel = (Math.cos(lat * Math.PI / 180) * earthCircumference) / (TILE_SIZE * Math.pow(2, mapZoomLevel));
+      return 1 / metersPerPixel;
+  }
 
-        const vehicleMarker = L.marker([defaultLat, defaultLng], { icon: vehicleIconHtml }).addTo(map);
-        const minimapMarker = L.marker([defaultLat, defaultLng], { 
-            icon: L.divIcon({ className: 'vehicle-marker', html: '<div style="font-size:12px;">🔴</div>', iconSize: [12,12], iconAnchor: [6,6] }) 
-        }).addTo(minimap);
+  // Pinch & Scroll Zoom
+  let currentPinchDistance = null;
 
-        // UI Element References
-        const speedValEl = document.getElementById('speed-val');
-        const headingValEl = document.getElementById('heading-val');
-        const carIconInner = document.getElementById('car-icon-inner');
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault(); // Stop page scrolling
+    if (e.deltaY < 0) {
+      mapZoomLevel += 0.25;
+    } else {
+      mapZoomLevel -= 0.25;
+    }
+    // Clamp zoom to reasonable map tile levels
+    mapZoomLevel = Math.max(12, Math.min(19, mapZoomLevel));
+  }, { passive: false });
 
-        // Input Event Listeners
-        function bindButton(id, inputKey) {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const activate = (e) => { e.preventDefault(); inputs[inputKey] = true; el.classList.add('active'); };
-            const deactivate = (e) => { e.preventDefault(); inputs[inputKey] = false; el.classList.remove('active'); };
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
+    }
+  }, { passive: true });
 
-            el.addEventListener('mousedown', activate);
-            el.addEventListener('mouseup', deactivate);
-            el.addEventListener('mouseleave', deactivate);
-            el.addEventListener('touchstart', activate, {passive: false});
-            el.addEventListener('touchend', deactivate, {passive: false});
-            el.addEventListener('touchcancel', deactivate, {passive: false});
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && currentPinchDistance !== null) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const newDistance = Math.sqrt(dx * dx + dy * dy);
+      
+      const delta = newDistance - currentPinchDistance;
+      
+      // Adjust zoom level (sensitivity)
+      mapZoomLevel += delta * 0.01;
+      mapZoomLevel = Math.max(12, Math.min(19, mapZoomLevel));
+      
+      currentPinchDistance = newDistance;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    if (e.touches.length < 2) {
+      currentPinchDistance = null;
+    }
+  });
+
+
+  // --- Tile Management ---
+  const tileCache = new Map();
+  let tilesLoading = 0;
+
+  function getTileUrl(x, y, z) {
+    // OpenStreetMap standard tile server
+    const servers = ['a', 'b', 'c'];
+    const s = servers[Math.abs(x + y) % 3];
+    return `https://${s}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  }
+
+  // Convert Meters to Tile coordinates at a specific integer zoom
+  function metersToTileXY(xMeters, yMeters, zoom) {
+    const lat = metersToLat(yMeters);
+    const lon = metersToLon(xMeters);
+    
+    const x = Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+    const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+    
+    return { x, y };
+  }
+
+  // Get exact pixel offset of a coordinate within a tile
+  function getTileOffset(xMeters, yMeters, zoom) {
+      const lat = metersToLat(yMeters);
+      const lon = metersToLon(xMeters);
+      
+      const n = Math.pow(2, zoom);
+      const xFull = (lon + 180) / 360 * n;
+      const yFull = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+      
+      return {
+          fracX: xFull % 1,
+          fracY: yFull % 1
+      };
+  }
+
+  function loadTile(key, url) {
+    if (tileCache.has(key)) return tileCache.get(key);
+    
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    
+    const tileObj = { img: img, loaded: false };
+    tileCache.set(key, tileObj);
+    
+    tilesLoading++;
+    loadingIndicator.style.display = 'block';
+
+    img.onload = () => {
+      tileObj.loaded = true;
+      tilesLoading--;
+      if (tilesLoading <= 0) {
+          loadingIndicator.style.display = 'none';
+      }
+    };
+    img.onerror = () => {
+      // In case of error, mark as loaded to prevent infinite loading state, but image will be empty
+      tileObj.loaded = true; 
+      tilesLoading--;
+      if (tilesLoading <= 0) loadingIndicator.style.display = 'none';
+    };
+    
+    img.src = url;
+    return tileObj;
+  }
+
+  // --- Real-Time Location Evaluation ---
+  function getLocationInfo(lat, lon) {
+    let town = "Kendall County Area";
+    let subregion = "Illinois";
+
+    // Rough bounding boxes based on Lat/Lon
+    // Yorkville Core bounds approx
+    if (lat > 41.61 && lat < 41.68 && lon > -88.48 && lon < -88.40) {
+        town = "Yorkville";
+        subregion = "Kendall County";
+        
+        // Specific areas within Yorkville
+        if (lat > 41.635 && lat < 41.645 && lon > -88.452 && lon < -88.435) {
+            town = "Downtown Yorkville";
+        } else if (lat > 41.640 && lat < 41.650 && lon > -88.465 && lon < -88.455) {
+             town = "Yorkville High School Campus";
+        } else if (lat > 41.615 && lat < 41.630 && lon > -88.475 && lon < -88.460) {
+             town = "Country Hills";
+        } else if (lat > 41.610 && lat < 41.635 && lon > -88.500 && lon < -88.475) {
+             town = "Fields of Farm Colony";
         }
+    } else if (lat >= 41.68) {
+        town = "Montgomery / Aurora Border";
+        subregion = "Kane County Line";
+    } else if (lon >= -88.40 && lat > 41.60) {
+        town = "Oswego";
+        subregion = "Kendall County";
+    } else if (lon <= -88.48 && lat > 41.63) {
+        town = "Plano";
+        subregion = "Kendall County";
+    }
 
-        bindButton('btn-left', 'left');
-        bindButton('btn-right', 'right');
-        bindButton('btn-accel', 'accel');
-        bindButton('btn-brake', 'brake');
+    return { town, subregion, lat, lon };
+  }
 
-        // Keyboard Controls support
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') inputs.left = true;
-            if (e.key === 'ArrowRight' || e.key === 'd') inputs.right = true;
-            if (e.key === 'ArrowUp' || e.key === 'w') inputs.accel = true;
-            if (e.key === 'ArrowDown' || e.key === 's') inputs.brake = true;
-        });
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') inputs.left = false;
-            if (e.key === 'ArrowRight' || e.key === 'd') inputs.right = false;
-            if (e.key === 'ArrowUp' || e.key === 'w') inputs.accel = false;
-            if (e.key === 'ArrowDown' || e.key === 's') inputs.brake = false;
-        });
+  // --- Physics Update Loop ---
+  let lastTime = performance.now();
+  function updatePhysics(dt) {
+    const accelKey = keys['w'] || keys['arrowup'];
+    const brakeKey = keys['s'] || keys['arrowdown'];
+    const leftKey = keys['a'] || keys['arrowleft'];
+    const rightKey = keys['d'] || keys['arrowright'];
 
-        // Main Game Loop
-        function updatePhysics() {
-            // Steering
-            if (inputs.left) heading = (heading - turnSpeed + 360) % 360;
-            if (inputs.right) heading = (heading + turnSpeed) % 360;
+    // Acceleration & Braking
+    if (accelKey) {
+      car.speed += car.acceleration * dt;
+      if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
+      car.isBraking = false;
+    } else if (brakeKey) {
+      if (car.speed > 0.5) {
+        car.speed *= car.brakeFriction;
+        car.isBraking = true;
+      } else {
+        // Reverse
+        car.speed -= car.acceleration * 0.5 * dt;
+        if (car.speed < -8) car.speed = -8; // Reduced reverse speed
+        car.isBraking = false;
+      }
+    } else {
+      car.speed *= car.friction;
+      car.isBraking = false;
+    }
 
-            // Acceleration & Braking
-            if (inputs.accel) {
-                speed = Math.min(speed + acceleration, maxSpeed);
-            } else if (inputs.brake) {
-                speed = Math.max(speed - (deceleration * 1.5), 0);
-            } else {
-                speed = Math.max(speed - deceleration, 0);
+    // Steering (scaled by movement speed)
+    if (Math.abs(car.speed) > 0.1) {
+      const dir = car.speed >= 0 ? 1 : -1;
+      if (leftKey) car.angle += car.turnSpeed * dir * dt;
+      if (rightKey) car.angle -= car.turnSpeed * dir * dt;
+    }
+
+    // Move car (Note: in Web Mercator, Y axis increases going North, unlike canvas where Y increases going South)
+    // Adjust angle calculation accordingly. 0 angle = North (positive Y in Mercator).
+    // Canvas: +Y is down. Mercator: +Y is up.
+    car.x += Math.sin(car.angle) * car.speed * dt;
+    car.y += Math.cos(car.angle) * car.speed * dt;
+
+    // Convert back to Lat/Lon for HUD
+    const currentLat = metersToLat(car.y);
+    const currentLon = metersToLon(car.x);
+
+    // Update HUD Metrics
+    const speedMph = Math.round(Math.abs(car.speed) * 2.23694);
+    speedDisplayEl.textContent = speedMph;
+
+    const locInfo = getLocationInfo(currentLat, currentLon);
+    locTownEl.textContent = locInfo.town;
+    locCountyEl.textContent = locInfo.subregion;
+    locCoordsEl.textContent = `${currentLat.toFixed(4)}° N, ${Math.abs(currentLon).toFixed(4)}° W`;
+  }
+
+  // --- Render Loop ---
+  function render() {
+    ctx.fillStyle = "#e5e3df"; // Base map background
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const intZoom = Math.floor(mapZoomLevel);
+    const zoomFrac = mapZoomLevel - intZoom;
+    
+    // Scale factor to smoothly transition between integer zoom levels
+    const tileScale = Math.pow(2, zoomFrac);
+    
+    // Determine the tile coordinates at the center of the screen
+    const centerTile = metersToTileXY(car.x, car.y, intZoom);
+    const centerOffset = getTileOffset(car.x, car.y, intZoom);
+
+    ctx.save();
+    
+    // Move to center of canvas
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    
+    // Apply continuous scaling
+    ctx.scale(tileScale, tileScale);
+    
+    // Render Tiles
+    // Determine how many tiles we need to draw based on screen size and scale
+    const tilesToRenderX = Math.ceil(canvas.width / (TILE_SIZE * tileScale)) + 1;
+    const tilesToRenderY = Math.ceil(canvas.height / (TILE_SIZE * tileScale)) + 1;
+    
+    const startTx = centerTile.x - Math.floor(tilesToRenderX / 2);
+    const endTx = centerTile.x + Math.floor(tilesToRenderX / 2);
+    const startTy = centerTile.y - Math.floor(tilesToRenderY / 2);
+    const endTy = centerTile.y + Math.floor(tilesToRenderY / 2);
+
+    for (let tx = startTx; tx <= endTx; tx++) {
+        for (let ty = startTy; ty <= endTy; ty++) {
+            const key = `${intZoom}-${tx}-${ty}`;
+            const url = getTileUrl(tx, ty, intZoom);
+            const tile = loadTile(key, url);
+            
+            // Calculate screen position of this tile
+            const screenX = (tx - centerTile.x - centerOffset.fracX) * TILE_SIZE;
+            const screenY = (ty - centerTile.y - centerOffset.fracY) * TILE_SIZE;
+
+            if (tile && tile.loaded) {
+                ctx.drawImage(tile.img, screenX, screenY, TILE_SIZE, TILE_SIZE);
             }
-
-            // Calculate movement vector based on heading and current zoom scale
-            if (speed > 0) {
-                const rad = heading * (Math.PI / 180);
-                const zoomFactor = Math.pow(2, 15 - map.getZoom()); // Dynamic scale relative to zoom
-                const currentSpeedScaled = speed * Math.max(0.2, zoomFactor);
-
-                carPos.lat += Math.cos(rad) * currentSpeedScaled;
-                carPos.lng += Math.sin(rad) * (currentSpeedScaled / Math.cos(carPos.lat * Math.PI / 180));
-            }
-
-            // Update Markers and Map View
-            vehicleMarker.setLatLng([carPos.lat, carPos.lng]);
-            minimapMarker.setLatLng([carPos.lat, carPos.lng]);
-            map.setView([carPos.lat, carPos.lng], map.getZoom(), { animate: false });
-            minimap.setView([carPos.lat, carPos.lng], 13, { animate: false });
-
-            // Rotate Car Icon visually
-            if (carIconInner) {
-                carIconInner.style.transform = `rotate(${heading}deg)`;
-            }
-
-            // Update HUD
-            const displaySpeed = Math.round((speed / maxSpeed) * 65);
-            speedValEl.innerText = `${displaySpeed} MPH`;
-            headingValEl.innerText = `${Math.round(heading)}°`;
-
-            requestAnimationFrame(updatePhysics);
         }
+    }
+    
+    ctx.restore();
 
-        requestAnimationFrame(updatePhysics);
-    </script>
+    // Render Car (On top of tiles, screen centered)
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    
+    // Rotate canvas so North is up, and car angle applies correctly.
+    // In our physics: angle 0 = North (moving +Y mercator).
+    // Canvas standard: North is -Y. 
+    ctx.rotate(car.angle);
+    
+    const ppm = getPixelsPerMeter();
+    
+    // Scale car based on zoom level so it stays physically accurate
+    ctx.scale(ppm, ppm);
+
+    // Car Shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    // Note: Canvas rendering puts standard shape center at 0,0. 
+    // Car points UP (negative Y in local canvas space)
+    ctx.fillRect(-car.width / 2 + 0.2, -car.length / 2 + 0.2, car.width, car.length);
+
+    // Main SUV Body (Midnight Metallic Blue)
+    ctx.fillStyle = "#1e3a8a";
+    ctx.beginPath();
+    ctx.roundRect(-car.width / 2, -car.length / 2, car.width, car.length, 0.6);
+    ctx.fill();
+
+    // Tinted Windshield & Sunroof
+    ctx.fillStyle = "#0f172a"; 
+    // Front windshield
+    ctx.fillRect(-car.width / 2 + 0.2, -car.length / 2 + 0.8, car.width - 0.4, 1.2);
+    // Rear window
+    ctx.fillRect(-car.width / 2 + 0.3, car.length / 2 - 1.2, car.width - 0.6, 0.8);
+    // Side windows
+    ctx.fillRect(-car.width / 2 + 0.1, -car.length / 2 + 2.2, 0.2, 2.0);
+    ctx.fillRect(car.width / 2 - 0.3, -car.length / 2 + 2.2, 0.2, 2.0);
+
+    // Side Mirrors
+    ctx.fillStyle = "#1e3a8a";
+    ctx.fillRect(-car.width / 2 - 0.2, -car.length / 2 + 1.2, 0.3, 0.2);
+    ctx.fillRect(car.width / 2 - 0.1, -car.length / 2 + 1.2, 0.3, 0.2);
+
+    // LED Headlights
+    ctx.fillStyle = "#e0f2fe";
+    ctx.fillRect(-car.width / 2 + 0.1, -car.length / 2 - 0.1, 0.4, 0.2);
+    ctx.fillRect(car.width / 2 - 0.5, -car.length / 2 - 0.1, 0.4, 0.2);
+
+    // Taillights / Brake Lights
+    ctx.fillStyle = car.isBraking ? "#ef4444" : "#991b1b";
+    ctx.fillRect(-car.width / 2 + 0.1, car.length / 2 - 0.1, 0.4, 0.2);
+    ctx.fillRect(car.width / 2 - 0.5, car.length / 2 - 0.1, 0.4, 0.2);
+
+    ctx.restore();
+  }
+
+  // --- Main Loop ---
+  function gameLoop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    updatePhysics(dt);
+    render();
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Start the loop
+  requestAnimationFrame(gameLoop);
+</script>
 </body>
 </html>
