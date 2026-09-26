@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Yorkville Explorer - OpenStreetMap Edition</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: #111;
+            font-family: monospace;
+            color: #fff;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background: #242424;
+        }
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 12px 18px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            pointer-events: none;
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        #hud span {
+            color: #4da6ff;
+            font-weight: bold;
+        }
+        #minimap-container {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            width: 140px;
+            height: 140px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            overflow: hidden;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            z-index: 10;
+        }
+        #minimapCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            color: #aaa;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        VEHICLE: <span>Ford Explorer (2024)</span><br>
+        SPEED: <span id="speedVal">0</span> MPH<br>
+        LOCATION: <span id="locationVal">Yorkville (Downtown)</span><br>
+        GPS: <span id="coordsVal">41.6447° N, 88.4459° W</span>
+    </div>
+
+    <div id="minimap-container">
+        <canvas id="minimapCanvas" width="140" height="140"></canvas>
+    </div>
+
+    <div id="controls-hint">
+        WASD / Arrow Keys to Drive | Pinch/Scroll to Zoom
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const mmCanvas = document.getElementById('minimapCanvas');
+        const mmCtx = mmCanvas.getContext('2d');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Kendall County / Yorkville & Oswego Center Coordinates (Web Mercator / Tile coordinates approximation)
+        // Center Yorkville approx lat: 41.6447, lon: -88.4459
+        const WORLD_CENTER_LAT = 41.6447;
+        const WORLD_CENTER_LON = -88.4459;
+
+        // Vehicle State
+        let car = {
+            x: 0, // World pixel offset from center
+            y: 0,
+            angle: -Math.PI / 2, // Facing North
+            speed: 0,
+            maxSpeed: 14,
+            reverseSpeed: -5,
+            acceleration: 0.15,
+            friction: 0.98,
+            turnSpeed: 0.04,
+            width: 32,
+            height: 64
+        };
+
+        let camera = {
+            zoom: 1.5, // Initial zoom
+            minZoom: 0.5,
+            maxZoom: 4.0
+        };
+
+        // Input Tracking
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        // Touch & Pinch Zoom Support
+        let touchStates = new Map();
+        let initialPinchDistance = null;
+        let initialZoom = camera.zoom;
+
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            for (let t of e.changedTouches) {
+                touchStates.set(t.identifier, { x: t.clientX, y: t.clientY });
+            }
+            if (e.touches.length === 2) {
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                initialZoom = camera.zoom;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for (let t of e.changedTouches) {
+                touchStates.set(t.identifier, { x: t.clientX, y: t.clientY });
+            }
+            if (e.touches.length === 2 && initialPinchDistance) {
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const factor = currentDistance / initialPinchDistance;
+                camera.zoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, initialZoom * factor));
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', e => {
+            e.preventDefault();
+            for (let t of e.changedTouches) {
+                touchStates.delete(t.identifier);
+            }
+            if (e.touches.length < 2) {
+                initialPinchDistance = null;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const zoomFactor = 1.1;
+            if (e.deltaY < 0) {
+                camera.zoom = Math.min(camera.maxZoom, camera.zoom * zoomFactor);
+            } else {
+                camera.zoom = Math.max(camera.minZoom, camera.zoom / zoomFactor);
+            }
+        }, { passive: false });
+
+        // Expanded Regional Landmarks Database (Yorkville & Oswego Area)
+        const locations = [
+            { name: "Yorkville (Downtown / Courthouse)", x: 0, y: 0, radius: 800 },
+            { name: "County Hills", x: -2500, y: -1800, radius: 700 },
+            { name: "Fields of Farm Colony", x: 3200, y: -2200, radius: 900 },
+            { name: "Grande Reserve", x: -3800, y: 1500, radius: 1000 },
+            { name: "Autumn Creek", x: 2800, y: 2400, radius: 850 },
+            { name: "Raintree", x: -1200, y: 3100, radius: 700 },
+            { name: "Bristol Ridge", x: -4500, y: -500, radius: 800 },
+            { name: "Kingston", x: 4200, y: -400, radius: 750 },
+            { name: "Blackberry Woods", x: 1500, y: -3800, radius: 800 },
+            { name: "Boulder Hill", x: 4500, y: 3500, radius: 1100 },
+            { name: "Fox Chase", x: -2000, y: -4500, radius: 800 },
+            { name: "Hunt Club", x: 6000, y: 1200, radius: 900 },
+            { name: "Winding Creek", x: 1200, y: 4500, radius: 750 }
+        ];
+
+        // Tile Management for OpenStreetMap Integration
+        const tileSize = 256;
+        // Approximate zoom level 14 tile coordinates for Yorkville center
+        const centerTileX = 39828;
+        const centerTileY = 57945;
+        const zoomLevel = 14;
+
+        // Tile Image Cache
+        const tileCache = {};
+
+        function getTileUrl(x, y, z) {
+            // Using standard OSM tile server
+            const subdomains = ['a', 'b', 'c'];
+            const sub = subdomains[Math.abs(x + y) % subdomains.length];
+            return `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+        }
+
+        function loadTile(x, y, z) {
+            const key = `${z}_${x}_${y}`;
+            if (!tileCache[key]) {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = getTileUrl(x, y, z);
+                tileCache[key] = { img: img, loaded: false };
+                img.onload = () => { tileCache[key].loaded = true; };
+            }
+            return tileCache[key];
+        }
+
+        // Procedural Road Network backing up OSM tiles if offline/loading
+        function drawProceduralGrid(camX, camY) {
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 12;
+            
+            // Major arterial grid lines simulating Route 34 and Route 47 intersection
+            ctx.beginPath();
+            // Route 47 (North-South)
+            ctx.moveTo(-10000 - camX, 0 - camY); ctx.lineTo(10000 - camX, 0 - camY);
+            // Route 34 (East-West)
+            ctx.moveTo(0 - camX, -10000 - camY); ctx.lineTo(0 - camX, 10000 - camY);
+            ctx.stroke();
+
+            // Neighborhood grid subdivisions
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            for (let x = -8000; x <= 8000; x += 1000) {
+                ctx.moveTo(x - camX, -8000 - camY);
+                ctx.lineTo(x - camX, 8000 - camY);
+            }
+            for (let y = -8000; y <= 8000; y += 1000) {
+                ctx.moveTo(-8000 - camX, y - camY);
+                ctx.lineTo(8000 - camX, y - camY);
+            }
+            ctx.stroke();
+        }
+
+        // Render OpenStreetMap Tiles centered around car position
+        function drawMapTiles(viewCenterX, viewCenterY) {
+            // Calculate tile offset based on world coordinates
+            // Scale factor to map world pixels to tile pixels
+            const pixelsPerMeter = 2.0; 
+            const worldPixelX = car.x * pixelsPerMeter;
+            const worldPixelY = car.y * pixelsPerMeter;
+
+            const baseGlobalX = (centerTileX * tileSize) + worldPixelX;
+            const baseGlobalY = (centerTileY * tileSize) + worldPixelY;
+
+            const startTileX = Math.floor((baseGlobalX - canvas.width / (2 * camera.zoom)) / tileSize);
+            const endTileX = Math.floor((baseGlobalX + canvas.width / (2 * camera.zoom)) / tileSize);
+            const startTileY = Math.floor((baseGlobalY - canvas.height / (2 * camera.zoom)) / tileSize);
+            const endTileY = Math.floor((baseGlobalY + canvas.height / (2 * camera.zoom)) / tileSize);
+
+            for (let tx = startTileX; tx <= endTileX; tx++) {
+                for (let ty = startTileY; ty <= endTileY; ty++) {
+                    const tile = loadTile(tx, ty, zoomLevel);
+                    
+                    const screenX = (tx * tileSize) - baseGlobalX + (canvas.width / 2);
+                    const screenY = (ty * tileSize) - baseGlobalY + (canvas.height / 2);
+
+                    if (tile.loaded) {
+                        ctx.drawImage(tile.img, screenX, screenY, tileSize, tileSize);
+                    } else {
+                        // Fallback placeholder while tile loads
+                        ctx.fillStyle = '#1a1a1a';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        ctx.strokeStyle = '#2a2a2a';
+                        ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+                    }
+                }
+            }
+        }
+
+        // Draw Ford Explorer Vector Sprite
+        function drawFordExplorer() {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(car.angle + Math.PI / 2);
+
+            // Drop shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(-car.width/2 - 4, -car.height/2 - 4, car.width + 8, car.height + 8);
+
+            // Tires
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-car.width/2 - 5, -car.height/2 + 8, 6, 14);
+            ctx.fillRect(car.width/2 - 1, -car.height/2 + 8, 6, 14);
+            ctx.fillRect(-car.width/2 - 5, car.height/2 - 22, 6, 14);
+            ctx.fillRect(car.width/2 - 1, car.height/2 - 22, 6, 14);
+
+            // Car Body (Modern SUV proportions - Carbonized Gray / Metallic Blue)
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(-car.width/2, -car.height/2, car.width, car.height, [10, 10, 6, 6]);
+            ctx.fill();
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Windshield & Roof
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-car.width/2 + 4, -car.height/2 + 16, car.width - 8, 16);
+            
+            // Headlights
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-car.width/2 + 2, -car.height/2, 6, 4);
+            ctx.fillRect(car.width/2 - 8, -car.height/2, 6, 4);
+
+            // Taillights
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-car.width/2 + 2, car.height/2 - 4, 6, 4);
+            ctx.fillRect(car.width/2 - 8, car.height/2 - 4, 6, 4);
+
+            ctx.restore();
+        }
+
+        // Update Minimap
+        function updateMinimap() {
+            mmCtx.clearRect(0, 0, mmCanvas.width, mmCanvas.height);
+            
+            // Minimap background circle clip
+            mmCtx.save();
+            mmCtx.beginPath();
+            mmCtx.arc(70, 70, 66, 0, Math.PI * 2);
+            mmCtx.clip();
+
+            mmCtx.fillStyle = '#1a1a1a';
+            mmCtx.fillRect(0, 0, mmCanvas.width, mmCanvas.height);
+
+            // Draw grid markers on minimap
+            mmCtx.strokeStyle = '#333';
+            mmCtx.lineWidth = 1;
+            mmCtx.beginPath();
+            mmCtx.moveTo(0, 70); mmCtx.lineTo(140, 70);
+            mmCtx.moveTo(70, 0); mmCtx.lineTo(70, 140);
+            mmCtx.stroke();
+
+            // Scale world coords to minimap coords (Center 70,70, scale factor 0.02)
+            const scale = 0.015;
+            
+            // Draw locations
+            locations.forEach(loc => {
+                const mx = 70 + (loc.x - car.x) * scale;
+                const my = 70 + (loc.y - car.y) * scale;
+                if (mx >= 0 && mx <= 140 && my >= 0 && my <= 140) {
+                    mmCtx.fillStyle = '#4da6ff';
+                    mmCtx.fillRect(mx - 2, my - 2, 4, 4);
+                }
+            });
+
+            // Draw Player Blip
+            mmCtx.fillStyle = '#ef4444';
+            mmCtx.beginPath();
+            mmCtx.arc(70, 70, 4, 0, Math.PI * 2);
+            mmCtx.fill();
+
+            mmCtx.restore();
+        }
+
+        // Game Loop
+        function update() {
+            // Handle Controls with speed scaling based on zoom
+            const zoomSpeedScale = Math.max(0.6, 1.5 / camera.zoom);
+
+            if (keys['w'] || keys['arrowup']) {
+                car.speed = Math.min(car.maxSpeed * zoomSpeedScale, car.speed + car.acceleration);
+            } else if (keys['s'] || keys['arrowdown']) {
+                car.speed = Math.max(car.reverseSpeed, car.speed - car.acceleration);
+            } else {
+                car.speed *= car.friction;
+            }
+
+            if (Math.abs(car.speed) > 0.2) {
+                if (keys['a'] || keys['arrowleft']) {
+                    car.angle -= car.turnSpeed * (car.speed / car.maxSpeed);
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    car.angle += car.turnSpeed * (car.speed / car.maxSpeed);
+                }
+            }
+
+            // Move car in world space
+            car.x += Math.cos(car.angle) * car.speed;
+            car.y += Math.sin(car.angle) * car.speed;
+
+            // Determine current active location banner
+            let activeLoc = "Yorkville (Outskirts)";
+            for (let loc of locations) {
+                const dist = Math.hypot(car.x - loc.x, car.y - loc.y);
+                if (dist < loc.radius) {
+                    activeLoc = loc.name;
+                    break;
+                }
+            }
+
+            // Update GPS Lat/Lon estimation based on world displacement
+            const latOffset = -(car.y * 0.000008);
+            const lonOffset = (car.x * 0.00001);
+            const currentLat = (WORLD_CENTER_LAT + latOffset).toFixed(4);
+            const currentLon = (WORLD_CENTER_LON + lonOffset).toFixed(4);
+
+            // Update HUD elements
+            document.getElementById('speedVal').innerText = Math.round(Math.abs(car.speed) * 3.5);
+            document.getElementById('locationVal').innerText = activeLoc;
+            document.getElementById('coordsVal').innerText = `${Math.abs(currentLat)}° N, ${Math.abs(currentLon)}° W`;
+        }
+
+        function render() {
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Apply Camera Zoom
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+            // Draw OpenStreetMap Tiles with procedural fallback
+            drawMapTiles(car.x, car.y);
+            drawProceduralGrid(car.x, car.y);
+
+            // Draw Player Vehicle
+            drawFordExplorer();
+
+            ctx.restore();
+
+            updateMinimap();
+        }
+
+        function loop() {
+            update();
+            render();
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
