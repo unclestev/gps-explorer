@@ -14,14 +14,15 @@
         }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
-        /* Car container centered on screen, rotates independently */
+        /* Car container centered on screen, rotates and scales independently with minimum limit */
         #car-container {
             position: absolute;
             top: 50%; left: 50%;
             width: 60px; height: 100px;
-            transform: translate(-50%, -50%) rotate(0deg);
+            transform: translate(-50%, -50%) rotate(0deg) scale(1);
             pointer-events: none;
             z-index: 10;
+            transform-origin: center center;
         }
         .explorer-body {
             position: absolute; width: 48px; height: 90px; left: 6px; top: 5px;
@@ -56,7 +57,7 @@
         }
         .tl-left { left: 6px; } .tl-right { right: 6px; }
 
-        /* HUD - Non-overlapping on mobile */
+        /* HUD - Expanded with City & County details */
         #hud {
             position: absolute; top: 20px; left: 20px;
             max-width: calc(100% - 180px);
@@ -138,6 +139,7 @@
         <p>Vehicle: <strong>Ford Explorer</strong></p>
         <p>Speed: <span id="speed-display">0</span> MPH</p>
         <p>Location: <span id="location-display">Downtown Yorkville</span></p>
+        <p>Area: <span id="area-display">Yorkville, Kendall County</span></p>
     </div>
 
     <!-- On-screen Touch Controls -->
@@ -199,14 +201,14 @@
             attributionControl: false
         });
 
-        // Continuous Zoom Logic (holds down to continuously zoom in/out)
+        // Continuous Zoom Logic
         let zoomInterval = null;
         function startContinuousZoom(delta) {
             if (zoomInterval) clearInterval(zoomInterval);
             zoomInterval = setInterval(() => {
                 const currentZoom = map.getZoom();
                 map.setZoom(currentZoom + delta);
-            }, 50); // Updates every 50ms for smooth continuous zooming
+            }, 50);
         }
 
         function stopContinuousZoom() {
@@ -219,27 +221,24 @@
         const btnZoomIn = document.getElementById('btn-zoom-in');
         const btnZoomOut = document.getElementById('btn-zoom-out');
 
-        // Zoom In Event Handlers
         btnZoomIn.addEventListener('mousedown', () => startContinuousZoom(0.15));
         btnZoomIn.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(0.15); });
         
-        // Zoom Out Event Handlers
         btnZoomOut.addEventListener('mousedown', () => startContinuousZoom(-0.15));
         btnZoomOut.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(-0.15); });
 
-        // Stop Zoom on Release/Leave
         window.addEventListener('mouseup', stopContinuousZoom);
         window.addEventListener('touchend', stopContinuousZoom);
         window.addEventListener('touchcancel', stopContinuousZoom);
 
-        // Physics State with dynamic zoom compensation
+        // Physics State with balanced slower base speed and zoom compensation
         let car = {
             lng: -88.4485,
             lat: 41.6425,
             speed: 0,
-            baseMaxSpeed: 0.00012,
-            acceleration: 0.000003,
-            friction: 0.92,
+            baseMaxSpeed: 0.00005, // Slower, balanced cruising speed
+            acceleration: 0.0000015,
+            friction: 0.93,
             angle: 0,
             turnSpeed: 3.5
         };
@@ -280,10 +279,10 @@
             const effectiveMaxSpeed = car.baseMaxSpeed * zoomScale;
             const effectiveAcc = car.acceleration * zoomScale;
 
-            if (keys.A && Math.abs(car.speed) > 0.000002) {
+            if (keys.A && Math.abs(car.speed) > 0.000001) {
                 car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
             }
-            if (keys.D && Math.abs(car.speed) > 0.000002) {
+            if (keys.D && Math.abs(car.speed) > 0.000001) {
                 car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
             }
 
@@ -299,7 +298,7 @@
                 document.getElementById('tl-right').style.boxShadow = '0 0 10px #ff0000';
             } else {
                 car.speed *= car.friction;
-                if (Math.abs(car.speed) < 0.0000001) car.speed = 0;
+                if (Math.abs(car.speed) < 0.00000005) car.speed = 0;
                 document.getElementById('tl-left').style.boxShadow = '0 0 4px #ff0000';
                 document.getElementById('tl-right').style.boxShadow = '0 0 4px #ff0000';
             }
@@ -317,25 +316,39 @@
                 miniMap.jumpTo({ center: [car.lng, car.lat] });
             }
 
-            carContainer.style.transform = `translate(-50%, -50%) rotate(${car.angle}deg)`;
+            // Bounded Car Scaling (clamped minimum limit so it doesn't become a tiny dot when zoomed out)
+            const zoomDiff = currentZoom - 17.5;
+            const carScale = Math.max(0.4, Math.pow(1.15, zoomDiff));
+            carContainer.style.transform = `translate(-50%, -50%) rotate(${car.angle}deg) scale(${carScale})`;
 
-            const displayMph = Math.round(Math.abs(car.speed) / car.baseMaxSpeed * 35);
+            // Speed Display (MPH)
+            const displayMph = Math.round(Math.abs(car.speed) / car.baseMaxSpeed * 30);
             document.getElementById('speed-display').innerText = displayMph;
 
+            // Region & Area Detector
             let locName = "Downtown Yorkville (Route 47)";
+            let cityName = "Yorkville";
+            const countyName = "Kendall County";
+            
             const dLng = car.lng - (-88.4485);
             const dLat = car.lat - 41.6425;
 
             if (dLat < -0.015) {
                 locName = "Country Hills Subdivision";
+                cityName = "Yorkville";
             } else if (dLng < -0.02) {
                 locName = "Fields of Farm Colony (Route 71)";
+                cityName = "Yorkville";
             } else if (dLat > 0.012 && dLng < -0.005) {
                 locName = "Yorkville High School Campus";
+                cityName = "Yorkville";
             } else if (dLng > 0.015) {
-                locName = "Oswego / Fox River Border";
+                locName = "Fox River Border";
+                cityName = "Oswego";
             }
+
             document.getElementById('location-display').innerText = locName;
+            document.getElementById('area-display').innerText = `${cityName}, ${countyName}`;
 
             requestAnimationFrame(updateGame);
         }
