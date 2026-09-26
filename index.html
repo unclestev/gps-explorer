@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yorkville Explorer - Full Features</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Yorkville Explorer</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #111;
-            user-select: none; -webkit-user-select: none;
+            user-select: none; -webkit-user-select: none; touch-action: none;
         }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
@@ -56,57 +56,82 @@
         }
         .tl-left { left: 6px; } .tl-right { right: 6px; }
 
-        /* HUD */
+        /* HUD - Non-overlapping on mobile */
         #hud {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(15, 23, 42, 0.85); color: white; padding: 15px 20px;
+            max-width: calc(100% - 180px);
+            background: rgba(15, 23, 42, 0.85); color: white; padding: 12px 16px;
             border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.1);
             z-index: 100; pointer-events: none;
         }
-        #hud h1 { margin: 0 0 5px 0; font-size: 18px; color: #38bdf8; }
-        #hud p { margin: 3px 0; font-size: 13px; color: #94a3b8; }
+        #hud h1 { margin: 0 0 4px 0; font-size: 16px; color: #38bdf8; }
+        #hud p { margin: 2px 0; font-size: 12px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Minimap Overlay */
+        /* Minimap Radar */
         #minimap-container {
             position: absolute; top: 20px; right: 20px;
-            width: 160px; height: 160px; border-radius: 50%;
+            width: 130px; height: 130px; border-radius: 50%;
             overflow: hidden; border: 3px solid #38bdf8;
             box-shadow: 0 8px 20px rgba(0,0,0,0.6); z-index: 100;
             background: #0f172a; pointer-events: none;
         }
         #minimap { width: 100%; height: 100%; }
 
-        /* Touch Controls (Mobile) */
+        /* Continuous Zoom Controls */
+        #zoom-controls {
+            position: absolute; top: 165px; right: 20px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 100;
+        }
+        .zoom-btn {
+            width: 40px; height: 40px; background: rgba(15, 23, 42, 0.9);
+            border: 2px solid #38bdf8; border-radius: 50%; color: white;
+            font-size: 20px; font-weight: bold; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            user-select: none; transition: transform 0.05s, background 0.1s;
+        }
+        .zoom-btn:active { transform: scale(0.9); background: rgba(56, 189, 248, 0.4); }
+
+        /* Touch Controls */
         #touch-controls {
-            position: absolute; bottom: 20px; left: 0; right: 0;
+            position: absolute; bottom: 25px; left: 0; right: 0;
             display: flex; justify-content: space-between; padding: 0 20px;
             z-index: 100; pointer-events: none;
         }
-        .control-group { display: flex; gap: 10px; pointer-events: auto; }
+        .control-group { display: flex; gap: 12px; pointer-events: auto; }
         .touch-btn {
-            width: 75px; height: 75px; background: rgba(15, 23, 42, 0.8);
-            border: 2px solid rgba(56, 189, 248, 0.5); border-radius: 50%;
-            color: white; font-size: 20px; font-weight: bold;
+            width: 75px; height: 75px;
+            border-radius: 50%; color: white; font-size: 18px; font-weight: bold;
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 5px 15px rgba(0,0,0,0.4); cursor: pointer;
             user-select: none; -webkit-user-select: none;
-            transition: background 0.1s, transform 0.1s;
+            transition: transform 0.05s;
         }
-        .touch-btn:active { background: rgba(56, 189, 248, 0.4); transform: scale(0.95); }
+        .touch-btn:active { transform: scale(0.92); }
 
-        #controls-hint {
-            position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.85); color: white; padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none;
-            border: 1px solid rgba(255,255,255,0.1); text-align: center;
-        }
+        /* Steering buttons */
+        .btn-steer { background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(56, 189, 248, 0.6); }
+        .btn-steer:active { background: rgba(56, 189, 248, 0.3); }
+
+        /* Gas button (Green) */
+        #btn-gas { background: rgba(22, 101, 52, 0.9); border: 2px solid #22c55e; }
+        #btn-gas:active { background: rgba(34, 197, 94, 0.5); }
+
+        /* Brake/Rev button (Red) */
+        #btn-brake { background: rgba(127, 29, 29, 0.9); border: 2px solid #ef4444; }
+        #btn-brake:active { background: rgba(239, 68, 68, 0.5); }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
     <div id="minimap-container"><div id="minimap"></div></div>
+
+    <!-- Continuous Zoom Buttons -->
+    <div id="zoom-controls">
+        <div class="zoom-btn" id="btn-zoom-in">+</div>
+        <div class="zoom-btn" id="btn-zoom-out">-</div>
+    </div>
 
     <div id="hud">
         <h1>YORKVILLE EXPLORER</h1>
@@ -115,13 +140,11 @@
         <p>Location: <span id="location-display">Downtown Yorkville</span></p>
     </div>
 
-    <div id="controls-hint">WASD / Arrows to Drive • Pinch/Scroll to Zoom • On-Screen Touch Buttons Active</div>
-
     <!-- On-screen Touch Controls -->
     <div id="touch-controls">
         <div class="control-group">
-            <div class="touch-btn" id="btn-left">◀</div>
-            <div class="touch-btn" id="btn-right">▶</div>
+            <div class="touch-btn btn-steer" id="btn-left">◀</div>
+            <div class="touch-btn btn-steer" id="btn-right">▶</div>
         </div>
         <div class="control-group">
             <div class="touch-btn" id="btn-brake">REV</div>
@@ -148,18 +171,25 @@
     </div>
 
     <script>
-        // Main Map (North-Up, interactive for pinch/scroll zoom)
+        // Main Map with explicit gesture handlers enabled
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
             center: [-88.4485, 41.6425],
             zoom: 17.5,
-            pitch: 0, // Top-down view so map stays north-up and car rotates on top
+            pitch: 0,
             bearing: 0,
-            interactive: true // Allows pinch-to-zoom and mouse wheel zoom
+            interactive: true,
+            scrollZoom: true,
+            boxZoom: true,
+            dragRotate: true,
+            dragPan: true,
+            keyboard: true,
+            doubleClickZoom: true,
+            touchZoomRotate: true
         });
 
-        // Minimap (Radar view in corner)
+        // Minimap Radar
         const miniMap = new maplibregl.Map({
             container: 'minimap',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -169,21 +199,53 @@
             attributionControl: false
         });
 
-        // Physics State
+        // Continuous Zoom Logic (holds down to continuously zoom in/out)
+        let zoomInterval = null;
+        function startContinuousZoom(delta) {
+            if (zoomInterval) clearInterval(zoomInterval);
+            zoomInterval = setInterval(() => {
+                const currentZoom = map.getZoom();
+                map.setZoom(currentZoom + delta);
+            }, 50); // Updates every 50ms for smooth continuous zooming
+        }
+
+        function stopContinuousZoom() {
+            if (zoomInterval) {
+                clearInterval(zoomInterval);
+                zoomInterval = null;
+            }
+        }
+
+        const btnZoomIn = document.getElementById('btn-zoom-in');
+        const btnZoomOut = document.getElementById('btn-zoom-out');
+
+        // Zoom In Event Handlers
+        btnZoomIn.addEventListener('mousedown', () => startContinuousZoom(0.15));
+        btnZoomIn.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(0.15); });
+        
+        // Zoom Out Event Handlers
+        btnZoomOut.addEventListener('mousedown', () => startContinuousZoom(-0.15));
+        btnZoomOut.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(-0.15); });
+
+        // Stop Zoom on Release/Leave
+        window.addEventListener('mouseup', stopContinuousZoom);
+        window.addEventListener('touchend', stopContinuousZoom);
+        window.addEventListener('touchcancel', stopContinuousZoom);
+
+        // Physics State with dynamic zoom compensation
         let car = {
             lng: -88.4485,
             lat: 41.6425,
             speed: 0,
-            maxSpeed: 0.00012,
+            baseMaxSpeed: 0.00012,
             acceleration: 0.000003,
             friction: 0.92,
-            angle: 0, // Heading in degrees (0 = North)
+            angle: 0,
             turnSpeed: 3.5
         };
 
         const keys = { W: false, A: false, S: false, D: false };
 
-        // Keyboard listeners
         window.addEventListener('keydown', (e) => {
             if (['w', 'W', 'ArrowUp'].includes(e.key)) keys.W = true;
             if (['a', 'A', 'ArrowLeft'].includes(e.key)) keys.A = true;
@@ -197,14 +259,13 @@
             if (['d', 'D', 'ArrowRight'].includes(e.key)) keys.D = false;
         });
 
-        // Touch Control Bindings
         function bindTouch(id, keyName) {
             const el = document.getElementById(id);
             el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
             el.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
-            el.addEventListener('mousedown', (e) => { keys[keyName] = true; });
-            el.addEventListener('mouseup', (e) => { keys[keyName] = false; });
-            el.addEventListener('mouseleave', (e) => { keys[keyName] = false; });
+            el.addEventListener('mousedown', () => { keys[keyName] = true; });
+            el.addEventListener('mouseup', () => { keys[keyName] = false; });
+            el.addEventListener('mouseleave', () => { keys[keyName] = false; });
         }
         bindTouch('btn-left', 'A');
         bindTouch('btn-right', 'D');
@@ -214,60 +275,54 @@
         const carContainer = document.getElementById('car-container');
 
         function updateGame() {
-            // Steering
-            if (keys.A && Math.abs(car.speed) > 0.000005) {
+            const currentZoom = map.getZoom();
+            const zoomScale = Math.pow(2, 17.5 - currentZoom);
+            const effectiveMaxSpeed = car.baseMaxSpeed * zoomScale;
+            const effectiveAcc = car.acceleration * zoomScale;
+
+            if (keys.A && Math.abs(car.speed) > 0.000002) {
                 car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
             }
-            if (keys.D && Math.abs(car.speed) > 0.000005) {
+            if (keys.D && Math.abs(car.speed) > 0.000002) {
                 car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
             }
 
-            // Acceleration / Braking
             if (keys.W) {
-                car.speed += car.acceleration;
-                if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
+                car.speed += effectiveAcc;
+                if (car.speed > effectiveMaxSpeed) car.speed = effectiveMaxSpeed;
                 document.getElementById('tl-left').style.boxShadow = '0 0 4px #ff0000';
                 document.getElementById('tl-right').style.boxShadow = '0 0 4px #ff0000';
             } else if (keys.S) {
-                car.speed -= car.acceleration;
-                if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
+                car.speed -= effectiveAcc;
+                if (car.speed < -effectiveMaxSpeed / 2) car.speed = -effectiveMaxSpeed / 2;
                 document.getElementById('tl-left').style.boxShadow = '0 0 10px #ff0000';
                 document.getElementById('tl-right').style.boxShadow = '0 0 10px #ff0000';
             } else {
                 car.speed *= car.friction;
-                if (Math.abs(car.speed) < 0.000001) car.speed = 0;
+                if (Math.abs(car.speed) < 0.0000001) car.speed = 0;
                 document.getElementById('tl-left').style.boxShadow = '0 0 4px #ff0000';
                 document.getElementById('tl-right').style.boxShadow = '0 0 4px #ff0000';
             }
 
-            // Move car coordinate based on heading angle
             if (car.speed !== 0) {
                 const rad = car.angle * (Math.PI / 180);
                 car.lng += Math.sin(rad) * car.speed;
                 car.lat += Math.cos(rad) * car.speed;
             }
 
-            // Update Map Center (keep map North-Up, move center to car)
             if (map.loaded()) {
-                map.jumpTo({
-                    center: [car.lng, car.lat]
-                });
+                map.jumpTo({ center: [car.lng, car.lat] });
             }
-
-            // Update Minimap center
             if (miniMap.loaded()) {
                 miniMap.jumpTo({ center: [car.lng, car.lat] });
             }
 
-            // Rotate car sprite visually on screen
             carContainer.style.transform = `translate(-50%, -50%) rotate(${car.angle}deg)`;
 
-            // Update HUD Speed (MPH estimation)
-            const displayMph = Math.round(Math.abs(car.speed) * 850000);
+            const displayMph = Math.round(Math.abs(car.speed) / car.baseMaxSpeed * 35);
             document.getElementById('speed-display').innerText = displayMph;
 
-            // Region Detector
-            let locName = "Downtown Yorkville (Route 47 / Fox River)";
+            let locName = "Downtown Yorkville (Route 47)";
             const dLng = car.lng - (-88.4485);
             const dLat = car.lat - 41.6425;
 
