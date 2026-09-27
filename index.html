@@ -14,7 +14,6 @@
         }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
-        /* Car container centered on screen, rotates and scales independently with minimum limit */
         #car-container {
             position: absolute;
             top: 50%; left: 50%;
@@ -57,7 +56,6 @@
         }
         .tl-left { left: 6px; } .tl-right { right: 6px; }
 
-        /* HUD - Responsive & Non-overlapping */
         #hud {
             position: absolute; top: 15px; left: 15px;
             max-width: 220px;
@@ -69,7 +67,6 @@
         #hud h1 { margin: 0 0 3px 0; font-size: 14px; color: #38bdf8; }
         #hud p { margin: 2px 0; font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Minimap Radar */
         #minimap-container {
             position: absolute; top: 15px; right: 15px;
             width: 110px; height: 110px; border-radius: 50%;
@@ -79,7 +76,6 @@
         }
         #minimap { width: 100%; height: 100%; }
 
-        /* Continuous Zoom Controls */
         #zoom-controls {
             position: absolute; top: 135px; right: 15px;
             display: flex; flex-direction: column; gap: 6px; z-index: 100;
@@ -93,7 +89,6 @@
         }
         .zoom-btn:active { transform: scale(0.9); background: rgba(56, 189, 248, 0.4); }
 
-        /* Touch Controls */
         #touch-controls {
             position: absolute; bottom: 15px; left: 0; right: 0;
             display: flex; justify-content: space-between; padding: 0 15px;
@@ -109,20 +104,13 @@
             transition: transform 0.05s;
         }
         .touch-btn:active { transform: scale(0.92); }
-
-        /* Steering buttons */
         .btn-steer { background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(56, 189, 248, 0.6); }
         .btn-steer:active { background: rgba(56, 189, 248, 0.3); }
-
-        /* Gas button (Green) */
         #btn-gas { background: rgba(22, 101, 52, 0.9); border: 2px solid #22c55e; }
         #btn-gas:active { background: rgba(34, 197, 94, 0.5); }
-
-        /* Brake/Rev button (Red) */
         #btn-brake { background: rgba(127, 29, 29, 0.9); border: 2px solid #ef4444; }
         #btn-brake:active { background: rgba(239, 68, 68, 0.5); }
 
-        /* Landscape / Compact Screen Adjustments to Prevent Overlap */
         @media (max-height: 500px) {
             #hud { max-width: 170px; padding: 6px 10px; top: 10px; left: 10px; }
             #hud h1 { font-size: 12px; }
@@ -140,7 +128,6 @@
     <div id="map"></div>
     <div id="minimap-container"><div id="minimap"></div></div>
 
-    <!-- Continuous Zoom Buttons -->
     <div id="zoom-controls">
         <div class="zoom-btn" id="btn-zoom-in">+</div>
         <div class="zoom-btn" id="btn-zoom-out">-</div>
@@ -154,7 +141,6 @@
         <p>Area: <span id="area-display">Yorkville, Kendall County</span></p>
     </div>
 
-    <!-- On-screen Touch Controls -->
     <div id="touch-controls">
         <div class="control-group">
             <div class="touch-btn btn-steer" id="btn-left">◀</div>
@@ -166,7 +152,6 @@
         </div>
     </div>
 
-    <!-- Centered Car Sprite -->
     <div id="car-container">
         <div class="explorer-body">
             <div class="headlight hl-left"></div>
@@ -185,7 +170,6 @@
     </div>
 
     <script>
-        // Main Map with explicit gesture handlers enabled
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -203,7 +187,6 @@
             touchZoomRotate: true
         });
 
-        // Minimap Radar
         const miniMap = new maplibregl.Map({
             container: 'minimap',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -213,7 +196,6 @@
             attributionControl: false
         });
 
-        // Continuous Zoom Logic
         let zoomInterval = null;
         function startContinuousZoom(delta) {
             if (zoomInterval) clearInterval(zoomInterval);
@@ -222,39 +204,23 @@
                 map.setZoom(currentZoom + delta);
             }, 50);
         }
-
         function stopContinuousZoom() {
             if (zoomInterval) {
                 clearInterval(zoomInterval);
                 zoomInterval = null;
             }
         }
-
         const btnZoomIn = document.getElementById('btn-zoom-in');
         const btnZoomOut = document.getElementById('btn-zoom-out');
-
         btnZoomIn.addEventListener('mousedown', () => startContinuousZoom(0.15));
         btnZoomIn.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(0.15); });
-        
         btnZoomOut.addEventListener('mousedown', () => startContinuousZoom(-0.15));
         btnZoomOut.addEventListener('touchstart', (e) => { e.preventDefault(); startContinuousZoom(-0.15); });
-
         window.addEventListener('mouseup', stopContinuousZoom);
         window.addEventListener('touchend', stopContinuousZoom);
         window.addEventListener('touchcancel', stopContinuousZoom);
 
-        // Physics State with relaxed, leisurely base speed and zoom compensation
-        let car = {
-            lng: -88.4485,
-            lat: 41.6425,
-            speed: 0,
-            baseMaxSpeed: 0.00002, // Smooth, slow cruising speed
-            acceleration: 0.0000008,
-            friction: 0.94,
-            angle: 0,
-            turnSpeed: 3.2
-        };
-
+        let car = { lng: -88.4485, lat: 41.6425, speed: 0, baseMaxSpeed: 0.00002, acceleration: 0.0000008, friction: 0.94, angle: 0, turnSpeed: 3.2 };
         const keys = { W: false, A: false, S: false, D: false };
 
         window.addEventListener('keydown', (e) => {
@@ -291,12 +257,8 @@
             const effectiveMaxSpeed = car.baseMaxSpeed * zoomScale;
             const effectiveAcc = car.acceleration * zoomScale;
 
-            if (keys.A && Math.abs(car.speed) > 0.0000005) {
-                car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
-            }
-            if (keys.D && Math.abs(car.speed) > 0.0000005) {
-                car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
-            }
+            if (keys.A && Math.abs(car.speed) > 0.0000005) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
+            if (keys.D && Math.abs(car.speed) > 0.0000005) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
 
             if (keys.W) {
                 car.speed += effectiveAcc;
@@ -321,42 +283,99 @@
                 car.lat += Math.cos(rad) * car.speed;
             }
 
-            if (map.loaded()) {
-                map.jumpTo({ center: [car.lng, car.lat] });
-            }
-            if (miniMap.loaded()) {
-                miniMap.jumpTo({ center: [car.lng, car.lat] });
-            }
+            if (map.loaded()) map.jumpTo({ center: [car.lng, car.lat] });
+            if (miniMap.loaded()) miniMap.jumpTo({ center: [car.lng, car.lat] });
 
-            // Bounded Car Scaling
             const zoomDiff = currentZoom - 17.5;
             const carScale = Math.max(0.4, Math.pow(1.15, zoomDiff));
             carContainer.style.transform = `translate(-50%, -50%) rotate(${car.angle}deg) scale(${carScale})`;
 
-            // Speed Display (MPH)
             const displayMph = Math.round(Math.abs(car.speed) / car.baseMaxSpeed * 25);
             document.getElementById('speed-display').innerText = displayMph;
 
-            // Region & Area Detector
-            let locName = "Downtown Yorkville (Route 47)";
+            // FLAWLESS, NON-OVERLAPPING SUBDIVISION BOUNDARIES
+            let locName = "";
             let cityName = "Yorkville";
-            const countyName = "Kendall County";
+            let countyName = "Kendall County";
             
-            const dLng = car.lng - (-88.4485);
-            const dLat = car.lat - 41.6425;
+            const clng = car.lng;
+            const clat = car.lat;
 
-            if (dLat < -0.015) {
-                locName = "Country Hills Subdivision";
-                cityName = "Yorkville";
-            } else if (dLng < -0.02) {
-                locName = "Fields of Farm Colony (Route 71)";
-                cityName = "Yorkville";
-            } else if (dLat > 0.012 && dLng < -0.005) {
-                locName = "Yorkville High School Campus";
-                cityName = "Yorkville";
-            } else if (dLng > 0.015) {
-                locName = "Fox River Border";
+            // 1. OSWEGO BORDERS (Strictly East of -88.380)
+            if (clng > -88.380 && clat >= 41.645) {
                 cityName = "Oswego";
+                if (clng >= -88.365 && clng <= -88.340 && clat >= 41.675 && clat <= 41.690) {
+                    locName = "Downtown Oswego";
+                } else if (clng > -88.340 && clat >= 41.680) {
+                    locName = "Churchill Club";
+                } else if (clng >= -88.380 && clng <= -88.340 && clat >= 41.645 && clat < 41.675) {
+                    locName = "Southbury";
+                } else if (clat > 41.690) {
+                    locName = "Farmington Lakes";
+                }
+            } 
+            // 2. PLANO BORDERS (Strictly West of -88.485)
+            else if (clng < -88.485) {
+                cityName = "Plano";
+                locName = "Plano City Limits";
+            } 
+            // 3. YORKVILLE BORDERS
+            else {
+                cityName = "Yorkville";
+                
+                // Downtown Yorkville (Center)
+                if (clng >= -88.452 && clng <= -88.440 && clat >= 41.638 && clat <= 41.648) {
+                    locName = "Downtown Yorkville / Riverfront";
+                } 
+                // Yorkville High School (West of Downtown)
+                else if (clng >= -88.460 && clng <= -88.445 && clat > 41.648 && clat <= 41.660) {
+                    locName = "Yorkville High School Campus";
+                } 
+                // Grande Reserve & Bristol Bay (Northeast, North of Rt 34)
+                else if (clng >= -88.440 && clng <= -88.380 && clat >= 41.660) {
+                    locName = "Grande Reserve / Bristol Bay";
+                } 
+                // Fields of Farm Colony (East, North of Rt 71)
+                else if (clng >= -88.415 && clng <= -88.380 && clat >= 41.635 && clat < 41.660) {
+                    locName = "Fields of Farm Colony"; 
+                } 
+                // Fox Highlands / East Yorkville (Bridge between Downtown and Farm Colony)
+                else if (clng >= -88.440 && clng < -88.415 && clat >= 41.638 && clat < 41.660) {
+                    locName = "Fox Highlands / East Yorkville";
+                }
+                // Raintree Village (Southeast, bounded exactly between Oswego and Country Hills)
+                else if (clng >= -88.415 && clng <= -88.380 && clat >= 41.600 && clat < 41.635) {
+                    locName = "Raintree Village";
+                } 
+                // Country Hills & Windett Ridge (South of Downtown, stretching to Route 47)
+                else if (clng >= -88.455 && clng < -88.415 && clat >= 41.600 && clat < 41.638) {
+                    locName = "Country Hills / Windett Ridge";
+                } 
+            }
+
+            // 4. DYNAMIC COMPASS FALLBACK FOR GAPS AND OUTER LIMITS
+            if (locName === "") {
+                let dLng = clng - (-88.4485);
+                let dLat = clat - 41.6425;
+                
+                let ns = "";
+                let ew = "";
+                
+                if (dLat > 0.008) ns = "North";
+                else if (dLat < -0.008) ns = "South";
+                
+                if (dLng > 0.012) ew = "East";
+                else if (dLng < -0.012) ew = "West";
+                
+                let direction = ns + ew; 
+                
+                if (direction === "") direction = "Central";
+                else if (direction === "NorthEast") direction = "Northeast";
+                else if (direction === "SouthEast") direction = "Southeast";
+                else if (direction === "NorthWest") direction = "Northwest";
+                else if (direction === "SouthWest") direction = "Southwest";
+
+                locName = `${direction} ${cityName} Local Roads`;
             }
 
             document.getElementById('location-display').innerText = locName;
