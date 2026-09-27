@@ -293,7 +293,7 @@
             const displayMph = Math.round(Math.abs(car.speed) / car.baseMaxSpeed * 25);
             document.getElementById('speed-display').innerText = displayMph;
 
-            // FLAWLESS, NON-OVERLAPPING SUBDIVISION BOUNDARIES
+            // UPDATED: FIELDS OF FARM COLONY STRICTLY SOUTH OF RT 71
             let locName = "";
             let cityName = "Yorkville";
             let countyName = "Kendall County";
@@ -302,13 +302,13 @@
             const clat = car.lat;
 
             // 1. OSWEGO BORDERS (Strictly East of -88.380)
-            if (clng > -88.380 && clat >= 41.645) {
+            if (clng > -88.380 && clat >= 41.640) {
                 cityName = "Oswego";
                 if (clng >= -88.365 && clng <= -88.340 && clat >= 41.675 && clat <= 41.690) {
                     locName = "Downtown Oswego";
                 } else if (clng > -88.340 && clat >= 41.680) {
                     locName = "Churchill Club";
-                } else if (clng >= -88.380 && clng <= -88.340 && clat >= 41.645 && clat < 41.675) {
+                } else if (clng >= -88.380 && clng <= -88.340 && clat >= 41.640 && clat < 41.675) {
                     locName = "Southbury";
                 } else if (clat > 41.690) {
                     locName = "Farmington Lakes";
@@ -323,49 +323,53 @@
             else {
                 cityName = "Yorkville";
                 
-                // Downtown Yorkville (Center)
-                if (clng >= -88.452 && clng <= -88.440 && clat >= 41.638 && clat <= 41.648) {
+                // Downtown Yorkville (Center, Bridge St / Rt 47)
+                if (clng >= -88.455 && clng <= -88.440 && clat >= 41.638 && clat <= 41.648) {
                     locName = "Downtown Yorkville / Riverfront";
                 } 
-                // Yorkville High School (West of Downtown)
-                else if (clng >= -88.460 && clng <= -88.445 && clat > 41.648 && clat <= 41.660) {
+                // Yorkville High School (Strictly West of Rt 47, Game Farm Rd)
+                else if (clng >= -88.465 && clng < -88.445 && clat > 41.648 && clat <= 41.665) {
                     locName = "Yorkville High School Campus";
                 } 
                 // Grande Reserve & Bristol Bay (Northeast, North of Rt 34)
-                else if (clng >= -88.440 && clng <= -88.380 && clat >= 41.660) {
+                else if (clng >= -88.445 && clng <= -88.380 && clat >= 41.655) {
                     locName = "Grande Reserve / Bristol Bay";
                 } 
-                // Fields of Farm Colony (East, North of Rt 71)
-                else if (clng >= -88.415 && clng <= -88.380 && clat >= 41.635 && clat < 41.660) {
+                // Fields of Farm Colony (East Yorkville, STRICTLY SOUTH of Rt 71, North of Raintree)
+                else if (clng >= -88.410 && clng <= -88.380 && clat >= 41.628 && clat < 41.645) {
                     locName = "Fields of Farm Colony"; 
                 } 
                 // Fox Highlands / East Yorkville (Bridge between Downtown and Farm Colony)
-                else if (clng >= -88.440 && clng < -88.415 && clat >= 41.638 && clat < 41.660) {
+                else if (clng >= -88.440 && clng < -88.410 && clat >= 41.638 && clat < 41.655) {
                     locName = "Fox Highlands / East Yorkville";
                 }
-                // Raintree Village (Southeast, bounded exactly between Oswego and Country Hills)
-                else if (clng >= -88.415 && clng <= -88.380 && clat >= 41.600 && clat < 41.635) {
+                // Raintree Village (Strictly East of Windett, South of Farm Colony)
+                else if (clng >= -88.428 && clng <= -88.380 && clat >= 41.600 && clat < 41.628) {
                     locName = "Raintree Village";
                 } 
-                // Country Hills & Windett Ridge (South of Downtown, stretching to Route 47)
-                else if (clng >= -88.455 && clng < -88.415 && clat >= 41.600 && clat < 41.638) {
-                    locName = "Country Hills / Windett Ridge";
+                // Windett Ridge (Strictly East of Rt 47, West of Raintree)
+                else if (clng >= -88.446 && clng < -88.428 && clat >= 41.600 && clat < 41.630) {
+                    locName = "Windett Ridge";
+                } 
+                // Country Hills (Strictly West of Rt 47, strictly South of Rt 71)
+                else if (clng >= -88.480 && clng < -88.446 && clat >= 41.600 && clat <= 41.632) {
+                    locName = "Country Hills";
                 } 
             }
 
             // 4. DYNAMIC COMPASS FALLBACK FOR GAPS AND OUTER LIMITS
             if (locName === "") {
-                let dLng = clng - (-88.4485);
-                let dLat = clat - 41.6425;
+                let dLng = clng - (-88.446); // Centered on Rt 47 Bridge St
+                let dLat = clat - 41.642;    // Centered on Downtown bridge
                 
                 let ns = "";
                 let ew = "";
                 
-                if (dLat > 0.008) ns = "North";
-                else if (dLat < -0.008) ns = "South";
+                if (dLat > 0.005) ns = "North";
+                else if (dLat < -0.005) ns = "South";
                 
-                if (dLng > 0.012) ew = "East";
-                else if (dLng < -0.012) ew = "West";
+                if (dLng > 0.008) ew = "East";
+                else if (dLng < -0.008) ew = "West";
                 
                 let direction = ns + ew; 
                 
